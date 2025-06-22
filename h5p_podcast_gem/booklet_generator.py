@@ -204,8 +204,8 @@ def create_booklet_content_json_structure(data: dict, video_id: str | None,
             "x": 3.149, "y": 5.594, "width": 37.5, "height": 20,
             # MODIFIED PART STARTS HERE
             "duration": {
-                "from": summary_interaction_item.get("startTime", 0) + 3, 
-                "to": summary_interaction_item.get("startTime", 0) + 3 + 1 # Or (summary_interaction_item.get("startTime", 0) + 2)
+                "from": summary_interaction_item.get("startTime", 0) + 9, 
+                "to": summary_interaction_item.get("startTime", 0) + 9 + 1 # Or (summary_interaction_item.get("startTime", 0) + 2)
             },
             "libraryTitle": "Statements", # Corresponds to H5P.Summary in the editor UI
             "action": {
