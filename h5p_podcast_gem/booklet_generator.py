@@ -49,8 +49,112 @@ def generate_h5p_json_dict(book_overall_title: str):
             {"machineName":"H5P.MultiChoice","majorVersion":1,"minorVersion":16},
             {"machineName":"H5P.TrueFalse","majorVersion":1,"minorVersion":8},
             {"machineName":"H5P.QuestionSet","majorVersion":1,"minorVersion":20},
+            {"machineName":"H5P.SingleChoiceSet","majorVersion":1,"minorVersion":11},
+            {"machineName":"H5P.DragText","majorVersion":1,"minorVersion":10},
             {"machineName":"H5P.InteractiveBook","majorVersion":1,"minorVersion":11}
         ]
+    }
+
+# --- Helper functions for creating different interaction types ---
+
+def create_summary_h5p(interaction_data: dict) -> dict:
+    """Creates an H5P.Summary interaction dictionary."""
+    h5p_summary_tasks = []
+    for group in interaction_data.get("statementGroups", []):
+        choices = []
+        correct_statement = ""
+        incorrect_statements = []
+        for stmt in group.get("statements", []):
+            if stmt.get("isCorrect"):
+                correct_statement = stmt.get("text", "")
+            else:
+                incorrect_statements.append(stmt.get("text", ""))
+        
+        if correct_statement:
+            choices = [correct_statement] + incorrect_statements
+        elif incorrect_statements:
+            choices = incorrect_statements
+        
+        h5p_summary_tasks.append({
+            "summary": choices,
+            "subContentId": utils_booklet.generate_uuid(),
+            "tip": group.get("tip", "")
+        })
+
+    return {
+        "library": "H5P.Summary 1.10",
+        "params": {
+            "intro": interaction_data.get("introText", "<p>Wähle die korrekten Aussagen.</p>"),
+            "overallFeedback": [{"from": 0, "to": 100}],
+            "solvedLabel":"Fortschritt:", "scoreLabel":"Falsche Antworten:", "resultLabel":"Dein Ergebnis",
+            "labelCorrect":"Richtig.", "labelIncorrect":"Falsch! Bitte versuche es noch einmal.",
+            "alternativeIncorrectLabel":"Falsch", "labelCorrectAnswers":"Richtige Antwort(en).",
+            "tipButtonLabel":"Tipp anzeigen", "scoreBarLabel":"Du hast :num von :total Punkten erreicht.",
+            "progressText":"Fortschritt :num von :total",
+            "summaries": h5p_summary_tasks
+        },
+        "subContentId": utils_booklet.generate_uuid(),
+        "metadata": {
+            "contentType": "Summary", "license": "U", 
+            "title": interaction_data.get("interactionTitle", "Zusammenfassung"),
+            "authors": [], "changes": [], "extraTitle": interaction_data.get("interactionTitle", "Zusammenfassung")
+        }
+    }
+
+def create_single_choice_set_h5p(interaction_data: dict) -> dict:
+    """Creates an H5P.SingleChoiceSet interaction dictionary."""
+    h5p_choices = []
+    for choice_item in interaction_data.get("choices", []):
+        h5p_choices.append({
+            "question": choice_item.get("question", ""),
+            "answers": choice_item.get("answers", []),
+            "subContentId": utils_booklet.generate_uuid()
+        })
+
+    return {
+        "library": "H5P.SingleChoiceSet 1.11",
+        "params": {
+            "overallFeedback": [{"from": 0, "to": 100}],
+            "behaviour": {"autoContinue": True, "timeoutCorrect": 1000, "timeoutWrong": 2000, "soundEffectsEnabled": False, "enableRetry": False, "enableSolutionsButton": False, "passPercentage": 100},
+            "l10n": {"nextButtonLabel": "Weiter", "showSolutionButtonLabel": "Lösung anzeigen", "retryButtonLabel": "Wiederholen", "solutionViewTitle": "Lösung", "correctText": "Richtig!", "incorrectText": "Falsch!", "shouldSelect": "Hätte gewählt werden müssen", "shouldNotSelect": "Hätte nicht gewählt werden sollen", "muteButtonLabel": "Stumm schalten", "closeButtonLabel": "Schließen", "slideOfTotal": "Seite :num von :total", "scoreBarLabel": "Du hast :num von :total Punkten erreicht.", "solutionListQuestionNumber": "Frage :num", "a11yShowSolution": "Die Lösung anzeigen. Die richtigen Lösungen werden in der Aufgabe angezeigt.", "a11yRetry": "Die Aufgabe wiederholen. Alle Versuche werden zurückgesetzt und die Aufgabe wird erneut gestartet."},
+            "choices": h5p_choices
+        },
+        "subContentId": utils_booklet.generate_uuid(),
+        "metadata": {
+            "contentType": "Single Choice Set", "license": "U", 
+            "title": interaction_data.get("interactionTitle", "Single Choice"),
+            "authors": [], "changes": [], "extraTitle": interaction_data.get("interactionTitle", "Single Choice")
+        }
+    }
+
+def create_drag_the_words_h5p(interaction_data: dict) -> dict:
+    """Creates an H5P.DragText interaction dictionary."""
+    distractors_input = interaction_data.get("distractors", "")
+    distractors_h5p = ""
+    if distractors_input:
+        # Convert "word1, word2" to "*word1* *word2*"
+        distractors_list = [f"*{word.strip()}*" for word in distractors_input.split(',') if word.strip()]
+        distractors_h5p = " ".join(distractors_list)
+
+    return {
+        "library": "H5P.DragText 1.10",
+        "params": {
+            "media": {"disableImageZooming": False},
+            "taskDescription": interaction_data.get("taskDescription", "Ziehe die Wörter in die richtigen Felder!"),
+            "textField": interaction_data.get("textField", "Lückentext hier. *Lücke*."),
+            "distractors": distractors_h5p,
+            "overallFeedback": [{"from": 0, "to": 100}],
+            "checkAnswer": "Überprüfen", "tryAgain": "Wiederholen", "showSolution": "Lösung anzeigen",
+            "correctText": "Richtig!", "incorrectText": "Falsch!",
+            "behaviour": {"enableRetry": True, "enableSolutionsButton": True, "enableCheckButton": True, "instantFeedback": False},
+            "scoreBarLabel": "Du hast :num von :total Punkten erreicht."
+        },
+        "subContentId": utils_booklet.generate_uuid(),
+        "metadata": {
+            "contentType": "Drag the Words", "license": "U", 
+            "title": interaction_data.get("interactionTitle", "Drag the Words"),
+            "authors": [], "changes": [], "extraTitle": interaction_data.get("interactionTitle", "Drag the Words")
+        }
     }
 
 # --- content.json generation ---
@@ -159,79 +263,56 @@ def create_booklet_content_json_structure(data: dict, video_id: str | None,
 
     interactive_video_section_data = ch2_data.get("interactiveVideo", {})
     iv_interactions = []
-    # Loop through each summary interaction pop-up defined in the input JSON
-    for summary_interaction_item in interactive_video_section_data.get("summaries", []):
-        h5p_summary_tasks = [] # This will hold the tasks for *this specific* pop-up
+    
+    # NEW: Loop through the generic 'interactions' array
+    for interaction_item in interactive_video_section_data.get("interactions", []):
+        interaction_type = interaction_item.get("type")
+        h5p_action = None
 
-        # NEW: Loop through each statementGroup within this summary interaction item
-        for group in summary_interaction_item.get("statementGroups", []):
-            h5p_statement_choices = []
-            correct_statement_text = ""
-            incorrect_statement_texts = []
+        if interaction_type == "Summary":
+            h5p_action = create_summary_h5p(interaction_item)
+        elif interaction_type == "SingleChoiceSet":
+            h5p_action = create_single_choice_set_h5p(interaction_item)
+        elif interaction_type == "DragTheWords":
+            h5p_action = create_drag_the_words_h5p(interaction_item)
+        else:
+            utils_booklet.logger.warning(f"Unknown interaction type '{interaction_type}' found. Skipping.")
+            continue
 
-            for stmt_obj in group.get("statements", []):
-                if stmt_obj.get("isCorrect"):
-                    correct_statement_text = stmt_obj.get("text", "")
-                else:
-                    incorrect_statement_texts.append(stmt_obj.get("text", ""))
-            
-            if correct_statement_text:
-                h5p_statement_choices = [correct_statement_text] + incorrect_statement_texts
-            elif incorrect_statement_texts: 
-                 h5p_statement_choices = incorrect_statement_texts
-            
-            # Each group becomes one task in H5P.Summary's "summaries" array
-            h5p_summary_tasks.append({
-                "summary": h5p_statement_choices, # Array of choice strings for this task
-                "subContentId": utils_booklet.generate_uuid(),
-                "tip": group.get("tip", "") # Tip specific to this group
+        if h5p_action:
+            iv_interactions.append({
+                "x": 3, "y": 5, "width": 40, "height": 20, # Generic position
+                "duration": {
+                    "from": interaction_item.get("startTime", 0),
+                    "to": interaction_item.get("startTime", 0) + 1
+                },
+                "action": h5p_action,
+                "pause": True,
+                "displayType": "poster",
+                "buttonOnMobile": False,
+                "adaptivity": {"correct": {"allowOptOut": False, "message": ""}, "wrong": {"allowOptOut": False, "message": ""}},
+                "label": ""
             })
 
-        # If no statementGroups were processed, h5p_summary_tasks will be empty.
-        # H5P.Summary might require at least one task, so consider a fallback or log a warning.
-        if not h5p_summary_tasks:
-            # Add a default placeholder task if none were generated to avoid H5P errors
-            # Or, you might choose to skip this interaction entirely if no valid groups.
-             utils_booklet.logger.warning(f"No statement groups found for interaction '{summary_interaction_item.get('interactionTitle', 'N/A')}'. Adding a placeholder task.")
-             h5p_summary_tasks.append({
-                 "summary": ["Placeholder - no statements provided"],
-                 "subContentId": utils_booklet.generate_uuid(),
-                 "tip": "Input JSON had no statement groups for this summary."
-             })
+    # NEW: Build the final summary task for the end of the video
+    final_summary_data = interactive_video_section_data.get("finalSummary")
+    final_summary_task = None
+    if final_summary_data:
+        # Re-use the summary creation helper, as the structure is identical
+        final_summary_task = create_summary_h5p(final_summary_data)
 
+    # Fallback to a default empty summary if none is provided in the JSON
+    if not final_summary_task:
+        final_summary_task = {
+            "library":"H5P.Summary 1.10",
+            "params": {
+                "intro":"Wähle die korrekte Aussage.", "overallFeedback":[{"from":0,"to":100}],
+                "summaries":[{"subContentId": utils_booklet.generate_uuid(),"tip":""}]
+            },
+            "subContentId": utils_booklet.generate_uuid(),
+            "metadata":{"contentType":"Summary","license":"U","title":"Video End-Summary"}
+        }
 
-        iv_interactions.append({
-            "x": 3.149, "y": 5.594, "width": 37.5, "height": 20,
-            # MODIFIED PART STARTS HERE
-            "duration": {
-                "from": summary_interaction_item.get("startTime", 0) + 6, 
-                "to": summary_interaction_item.get("startTime", 0) + 6 + 1 # Or (summary_interaction_item.get("startTime", 0) + 2)
-            },
-            "libraryTitle": "Statements", # Corresponds to H5P.Summary in the editor UI
-            "action": {
-                "library": "H5P.Summary 1.10",
-                "params": {
-                    "intro": summary_interaction_item.get("introText", "<p>Wähle die korrekten Aussagen.</p>"),
-                    "overallFeedback": [{"from": 0, "to": 100}],
-                    "solvedLabel":"Fortschritt:", "scoreLabel":"Falsche Antworten:", "resultLabel":"Dein Ergebnis",
-                    "labelCorrect":"Richtig.", "labelIncorrect":"Falsch! Bitte versuche es noch einmal.",
-                    "alternativeIncorrectLabel":"Falsch", "labelCorrectAnswers":"Richtige Antwort(en).",
-                    "tipButtonLabel":"Tipp anzeigen", "scoreBarLabel":"Du hast :num von :total Punkten erreicht.",
-                    "progressText":"Fortschritt :num von :total",
-                    "summaries": h5p_summary_tasks # MODIFIED: This is now an array of tasks
-                },
-                "subContentId": utils_booklet.generate_uuid(),
-                "metadata": {
-                    "contentType": "Summary", "license": "U", 
-                    "title": summary_interaction_item.get("interactionTitle", "Zusammenfassung"),
-                    "authors": [], "changes": [], "extraTitle": summary_interaction_item.get("interactionTitle", "Zusammenfassung")
-                }
-            },
-            "pause": True, "displayType": "poster", "buttonOnMobile": False,
-            "adaptivity": {"correct": {"allowOptOut": False, "message": ""}, "wrong": {"allowOptOut": False, "message": ""}},
-            "label": ""
-        })
-    
     youtube_path = f"https://www.youtube.com/watch?v={video_id}" if video_id else ""
     
     video_endscreen_time = 432 
@@ -249,26 +330,12 @@ def create_booklet_content_json_structure(data: dict, video_id: str | None,
                     },
                     "assets": {"interactions": iv_interactions, "bookmarks": [], 
                                "endscreens": [
-                                   {"time":0,"label":"0:00 Antwortübermittlung"},
                                    {"time": video_endscreen_time,"label":f"{video_endscreen_time//60}:{video_endscreen_time%60:02d} Antwortübermittlung"}
                                 ]
                               },
                     "summary": { 
-                        "task": {
-                            "library":"H5P.Summary 1.10",
-                            "params": {
-                                "intro":"Wähle die korrekte Aussage.", "overallFeedback":[{"from":0,"to":100}],
-                                "solvedLabel":"Fortschritt:", "scoreLabel":"Falsche Antworten:", "resultLabel":"Dein Ergebnis",
-                                "labelCorrect":"Richtig.", "labelIncorrect":"Falsch! Bitte versuche es noch einmal.",
-                                "alternativeIncorrectLabel":"Falsch", "labelCorrectAnswers":"Richtige Antwort(en).",
-                                "tipButtonLabel":"Tipp anzeigen", "scoreBarLabel":"Du hast :num von :total Punkten erreicht.",
-                                "progressText":"Fortschritt :num von :total",
-                                "summaries":[{"subContentId": utils_booklet.generate_uuid(),"tip":""}]
-                            },
-                            "subContentId": utils_booklet.generate_uuid(),
-                            "metadata":{"contentType":"Summary","license":"U","title":"Video End-Summary"}
-                        },
-                        "displayAt":3 
+                        "task": final_summary_task, # Use the generated or fallback final summary
+                        "displayAt": 3 
                     }
                 },
                 "override": { 
@@ -354,7 +421,7 @@ def create_booklet_content_json_structure(data: dict, video_id: str | None,
                 "randomQuestions": True, 
                 "poolSize": 10,
                 "questions": mapped_questions,
-                "backgroundImage": qs_background_file_params, # This should be just the file object, not the wrapper
+                "backgroundImage": qs_background_file_params,
                 "endGame": { 
                     "showResultPage":True,"showSolutionButton":True,"showRetryButton":True,
                     "noResultMessage":"Quiz beendet","message":"Dein Ergebnis:",
@@ -400,7 +467,6 @@ def create_booklet_content_json_structure(data: dict, video_id: str | None,
             "baseColor":"#1768c4","defaultTableOfContents":True,"progressIndicators":True,
             "progressAuto":True,"displaySummary":True,"enableRetry":True
         },
-        # Full list of l10n strings from the dummy H5P.InteractiveBook content.json
         "read":"Öffnen","displayTOC":"Inhaltsverzeichnis anzeigen","hideTOC":"Inhaltsverzeichnis ausblenden",
         "nextPage":"Nächste Seite","previousPage":"Vorherige Seite","chapterCompleted":"Seite abgeschlossen!",
         "partCompleted":"@pages von @total Seiten abgeschlossen","incompleteChapter":"Unvollständige Seite",
