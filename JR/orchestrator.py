@@ -13,6 +13,10 @@ st.set_page_config(page_title="H5P Generator (Annual Review)", page_icon="📚",
 
 def main():
     st.title("H5P Annual Review Generator")
+    
+    # --- NEW: Google Gem Link ---
+    st.info("🤖 **Need help generating content?** Use this specialized Google Gem to create the JSONs: [**Click here to open Gem**](https://gemini.google.com/gem/f2f793ed47f4)")
+    
     st.markdown("Generate an Interactive Book with automatic customization for 2025.")
 
     # --- TOP CONFIG ---

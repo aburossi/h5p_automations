@@ -5,7 +5,7 @@ import utils_booklet_iframe as utils_booklet
 # --- Constants & L10N ---
 DEFAULT_BEHAVIOUR = {
     "baseColor": "#002f6c", 
-    "defaultTableOfContents": False, # Disabled as requested
+    "defaultTableOfContents": False, 
     "progressIndicators": True,
     "progressAuto": True, 
     "displaySummary": True, 
@@ -13,7 +13,7 @@ DEFAULT_BEHAVIOUR = {
 }
 
 BOOK_L10N = {
-    "read": "Starten", "displayTOC": "Inhaltsverzeichnis anzeigen", "hideTOC": "Inhaltsverzeichnis ausblenden",
+    "read": "Öffnen", "displayTOC": "Inhaltsverzeichnis anzeigen", "hideTOC": "Inhaltsverzeichnis ausblenden",
     "nextPage": "Nächste Seite", "previousPage": "Vorherige Seite", "chapterCompleted": "Seite abgeschlossen!",
     "partCompleted": "@pages von @total Seiten abgeschlossen", "incompleteChapter": "Unvollständige Seite",
     "navigateToTop": "Nach oben springen", "markAsFinished": "Ich habe diese Seite abgeschlossen",
@@ -63,7 +63,7 @@ def generate_h5p_json_dict(title: str):
 # --- Content Generators ---
 
 def create_hardcoded_introduction(roman_number: str):
-    intro_html = f"""<h2><strong>Willkommen zum Jahresrückblick 2025, Teil {roman_number}</strong></h2><p>Gemeinsam blicken wir zurück auf bewegende, spannende und teils tragische Ereignisse aus Politik, Gesellschaft und Kultur, die das Jahr 2025 geprägt haben.&nbsp;</p><h3>Lernziele</h3><p>Sie können …</p><ul><li><strong>zentrale Ereignisse des Jahres 2025 beschreiben</strong> und deren Bedeutung erklären.</li><li><strong>Zusammenhänge zwischen verschiedenen Entwicklungen erkennen</strong> und reflektieren.</li><li>eigene Meinungen zu den Geschehnissen formulieren und begründen.</li></ul><h3>Ablauf</h3><ol><li><strong>Memory-Spiel:</strong> Spielen Sie eine Runde Memory, in der Sie Gesichter und Beschreibungen von Personen, die das Jahr 2025 geprägt haben, zuordnen.</li><li><strong>SRF-Beitrag:</strong> Schauen Sie den SRF-Rückblick auf die Ereignisse des Jahres und beantworten Sie die Verständnisfragen.</li><li><strong>Reflexion:</strong> Nutzen Sie Mentimeter, um Ihre Gedanken zu den Geschehnissen zu teilen und mögliche Schlagzeilen für 2026 zu formulieren.</li></ol>"""
+    intro_html = f"""<h2><strong>Willkommen zum Jahresrückblick 2025, Teil {roman_number}</strong></h2><p>Gemeinsam blicken wir zurück auf bewegende, spannende und teils tragische Ereignisse aus Politik, Gesellschaft und Kultur, die das Jahr 2024 geprägt haben.&nbsp;</p><h3>Lernziele</h3><p>Sie können …</p><ul><li><strong>zentrale Ereignisse des Jahres 2024 beschreiben</strong> und deren Bedeutung erklären.</li><li><strong>Zusammenhänge zwischen verschiedenen Entwicklungen erkennen</strong> und reflektieren.</li><li>eigene Meinungen zu den Geschehnissen formulieren und begründen.</li></ul><h3>Ablauf</h3><ol><li><strong>Memory-Spiel:</strong> Spielen Sie eine Runde Memory, in der Sie Gesichter und Beschreibungen von Personen, die das Jahr 2025 geprägt haben, zuordnen.</li><li><strong>SRF-Beitrag:</strong> Schauen Sie den SRF-Rückblick auf die Ereignisse des Jahres und beantworten Sie die Verständnisfragen.</li><li><strong>Reflexion:</strong> Nutzen Sie Mentimeter, um Ihre Gedanken zu den Geschehnissen zu teilen und mögliche Schlagzeilen für 2026 zu formulieren.</li></ol>"""
 
     return {
         "subContentId": utils_booklet.generate_uuid(),
@@ -122,7 +122,11 @@ def create_memory_game(data):
         "metadata": {"contentType": "Memory Game", "license": "U", "title": data.get("title", "Memory")},
         "params": {
             "cards": cards_h5p,
-            "behaviour": {"useGrid": False, "allowRetry": False},
+            "behaviour": {
+                "useGrid": False, 
+                "allowRetry": False,
+                "numCardsToUse": 4  # <--- UPDATED: Limit to 4 cards
+            },
             "lookNFeel": {
                 "themeColor": data.get("themeColor", "#002f6c"),
                 "cardBack": utils_booklet.create_image_param(data.get("card_back_image", "images/card_back.png"))
