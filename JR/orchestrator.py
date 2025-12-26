@@ -71,7 +71,6 @@ def main():
         st.subheader("5. Survey & Results (Chap 6 & 7)")
         st.caption("Enter the Mentimeter URLs directly.")
         menti_url_6 = st.text_input("Reflexion URL (Step 6 - Survey)", placeholder="https://www.menti.com/...")
-        # UPDATED LABEL BELOW
         menti_url_7 = st.text_input("Results URL (Step 7 - Ergebnisse)", placeholder="https://www.mentimeter.com/app/presentation/...")
 
     st.markdown("---")
@@ -88,7 +87,6 @@ def main():
             return
 
         # 1. Collect inputs
-        # Note: We do NOT pass json_steps anymore, we use the URLs
         raw_inputs = [json_memory, json_video, json_questions, json_cloze]
         parsed_data_list = []
         has_error = False
@@ -120,29 +118,41 @@ def main():
             return
 
         try:
-            with st.spinner("Compiling H5P package..."):
+            with st.spinner("Compiling H5P package (this may take a moment if compressing images)..."):
                 
-                # A. Handle File Uploads (Images)
+                # A. Handle File Uploads (Images) & Compress
                 extra_files_to_zip = []
                 
                 # Cover Image
                 cover_filename_param = "images/title_2025.png" # default fallback
                 if cover_upload is not None:
+                    # --- COMPRESSION STEP ---
+                    processed_data = utils_booklet.compress_image_if_needed(
+                        cover_upload.getvalue(), 
+                        cover_upload.name
+                    )
+                    
                     # We store it as images/filename in the zip
                     cover_filename_param = f"images/{cover_upload.name}"
                     extra_files_to_zip.append({
                         "filename": cover_filename_param,
-                        "data": cover_upload.getvalue()
+                        "data": processed_data 
                     })
                 
                 # Memory Images
                 if mem_images_upload:
                     for mem_file in mem_images_upload:
+                        # --- COMPRESSION STEP ---
+                        processed_data = utils_booklet.compress_image_if_needed(
+                            mem_file.getvalue(), 
+                            mem_file.name
+                        )
+
                         # Ensure user JSON references "images/filename" matches these
                         f_path = f"images/{mem_file.name}"
                         extra_files_to_zip.append({
                             "filename": f_path,
-                            "data": mem_file.getvalue()
+                            "data": processed_data
                         })
 
                 # B. Generate Content Structure (content.json) with dynamic values

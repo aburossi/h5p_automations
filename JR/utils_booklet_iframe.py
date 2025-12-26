@@ -4,12 +4,83 @@ import io
 import logging
 import json
 from pathlib import Path
+from PIL import Image  # Requires: pip install Pillow
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# --- Constants ---
+MAX_IMAGE_SIZE_BYTES = 1 * 1024 * 1024   # Threshold: 1 MB
+TARGET_IMAGE_SIZE_BYTES = 500 * 1024     # Target: 500 KB
+
 def generate_uuid():
     return str(uuid.uuid4())
+
+# --- Image Processing ---
+def compress_image_if_needed(image_data_bytes: bytes, original_filename: str) -> bytes:
+    """
+    Checks if image data > 1MB. If so, resizes dimensions iteratively 
+    using Pillow until size is approx < 500KB.
+    Keeps the original file format (PNG/JPG) to ensure JSON references remain valid.
+    """
+    # If it's already small enough, just return original data
+    if len(image_data_bytes) <= MAX_IMAGE_SIZE_BYTES:
+        return image_data_bytes
+
+    logger.info(f"Compressing image {original_filename} (Current: {len(image_data_bytes)/1024:.2f} KB)...")
+
+    try:
+        # Load image from bytes
+        img = Image.open(io.BytesIO(image_data_bytes))
+        
+        # Determine format based on filename extension (keep original format)
+        ext = Path(original_filename).suffix.lower()
+        fmt = 'PNG' if ext == '.png' else 'JPEG'
+        
+        # Setup for iteration
+        current_img = img
+        output_buffer = io.BytesIO()
+        scale_factor = 0.9 # Reduce dimensions by 10% each step
+
+        iteration = 0
+        while True:
+            iteration += 1
+            output_buffer.seek(0)
+            output_buffer.truncate(0)
+            
+            # Save current version to buffer
+            # Optimize=True helps both formats. Quality only affects JPEG.
+            kwargs = {'optimize': True}
+            if fmt == 'JPEG': kwargs['quality'] = 85
+                
+            current_img.save(output_buffer, format=fmt, **kwargs)
+            
+            current_size = output_buffer.tell()
+            
+            # Check if goal reached
+            if current_size <= TARGET_IMAGE_SIZE_BYTES:
+                break 
+
+            # Safety break if dimensions get too small or too many iterations
+            if current_img.width < 300 or current_img.height < 300 or iteration > 10:
+                logger.warning(f"Could not compress {original_filename} fully to target size. Stopping at {current_size/1024:.2f} KB.")
+                break
+
+            # Calculate new dimensions for next iteration
+            new_width = int(current_img.width * scale_factor)
+            new_height = int(current_img.height * scale_factor)
+            
+            # Resize (LANCZOS is good quality for downscaling)
+            current_img = current_img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+            
+        compressed_data = output_buffer.getvalue()
+        logger.info(f"Finished compressing {original_filename}. New size: {len(compressed_data)/1024:.2f} KB")
+        return compressed_data
+
+    except Exception as e:
+        logger.error(f"Error compressing image {original_filename}: {e}")
+        # Fallback: return original data if compression fails
+        return image_data_bytes
 
 # --- Text Processing ---
 def recursive_replace_ss(data):
@@ -26,7 +97,7 @@ def recursive_replace_ss(data):
     else:
         return data
 
-# --- Existing Utils ---
+# --- H5P Mapping Utils ---
 def parse_copyright_info(copyright_input):
     if not copyright_input:
         return {"license": "U"} 

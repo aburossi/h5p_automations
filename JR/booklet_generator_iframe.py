@@ -4,12 +4,16 @@ import utils_booklet_iframe as utils_booklet
 
 # --- Constants & L10N ---
 DEFAULT_BEHAVIOUR = {
-    "baseColor": "#002f6c", "defaultTableOfContents": False, "progressIndicators": True,
-    "progressAuto": True, "displaySummary": True, "enableRetry": True
+    "baseColor": "#002f6c", 
+    "defaultTableOfContents": False, # Disabled as requested
+    "progressIndicators": True,
+    "progressAuto": True, 
+    "displaySummary": True, 
+    "enableRetry": True
 }
 
 BOOK_L10N = {
-    "read": "Öffnen", "displayTOC": "Inhaltsverzeichnis anzeigen", "hideTOC": "Inhaltsverzeichnis ausblenden",
+    "read": "Starten", "displayTOC": "Inhaltsverzeichnis anzeigen", "hideTOC": "Inhaltsverzeichnis ausblenden",
     "nextPage": "Nächste Seite", "previousPage": "Vorherige Seite", "chapterCompleted": "Seite abgeschlossen!",
     "partCompleted": "@pages von @total Seiten abgeschlossen", "incompleteChapter": "Unvollständige Seite",
     "navigateToTop": "Nach oben springen", "markAsFinished": "Ich habe diese Seite abgeschlossen",
@@ -59,7 +63,7 @@ def generate_h5p_json_dict(title: str):
 # --- Content Generators ---
 
 def create_hardcoded_introduction(roman_number: str):
-    intro_html = f"""<h2><strong>Willkommen zum Jahresrückblick 2025, Teil {roman_number}</strong></h2><p>Gemeinsam blicken wir zurück auf bewegende, spannende und teils tragische Ereignisse aus Politik, Gesellschaft und Kultur, die das Jahr 2024 geprägt haben.&nbsp;</p><h3>Lernziele</h3><p>Sie können …</p><ul><li><strong>zentrale Ereignisse des Jahres 2024 beschreiben</strong> und deren Bedeutung erklären.</li><li><strong>Zusammenhänge zwischen verschiedenen Entwicklungen erkennen</strong> und reflektieren.</li><li>eigene Meinungen zu den Geschehnissen formulieren und begründen.</li></ul><h3>Ablauf</h3><ol><li><strong>Memory-Spiel:</strong> Spielen Sie eine Runde Memory, in der Sie Gesichter und Beschreibungen von Personen, die das Jahr 2025 geprägt haben, zuordnen.</li><li><strong>SRF-Beitrag:</strong> Schauen Sie den SRF-Rückblick auf die Ereignisse des Jahres und beantworten Sie die Verständnisfragen.</li><li><strong>Reflexion:</strong> Nutzen Sie Mentimeter, um Ihre Gedanken zu den Geschehnissen zu teilen und mögliche Schlagzeilen für 2026 zu formulieren.</li></ol>"""
+    intro_html = f"""<h2><strong>Willkommen zum Jahresrückblick 2025, Teil {roman_number}</strong></h2><p>Gemeinsam blicken wir zurück auf bewegende, spannende und teils tragische Ereignisse aus Politik, Gesellschaft und Kultur, die das Jahr 2025 geprägt haben.&nbsp;</p><h3>Lernziele</h3><p>Sie können …</p><ul><li><strong>zentrale Ereignisse des Jahres 2025 beschreiben</strong> und deren Bedeutung erklären.</li><li><strong>Zusammenhänge zwischen verschiedenen Entwicklungen erkennen</strong> und reflektieren.</li><li>eigene Meinungen zu den Geschehnissen formulieren und begründen.</li></ul><h3>Ablauf</h3><ol><li><strong>Memory-Spiel:</strong> Spielen Sie eine Runde Memory, in der Sie Gesichter und Beschreibungen von Personen, die das Jahr 2025 geprägt haben, zuordnen.</li><li><strong>SRF-Beitrag:</strong> Schauen Sie den SRF-Rückblick auf die Ereignisse des Jahres und beantworten Sie die Verständnisfragen.</li><li><strong>Reflexion:</strong> Nutzen Sie Mentimeter, um Ihre Gedanken zu den Geschehnissen zu teilen und mögliche Schlagzeilen für 2026 zu formulieren.</li></ol>"""
 
     return {
         "subContentId": utils_booklet.generate_uuid(),
@@ -204,7 +208,7 @@ def create_video_page(data):
             "subContentId": utils_booklet.generate_uuid(),
             "library": "H5P.AdvancedText 1.1",
             "metadata": {"contentType": "Text", "license": "U", "title": "Link"},
-            "params": {"text": f"<p>Link zum Video 👉 <a href='{vid_data.get('url')}' target='_blank'>SRF</a></p>"}
+            "params": {"text": f"<p>❗ Falls die Meldung 'Ihr Webbrowser wird nicht unterstützt' kommt, 👉 Seite neu laden löst meistens das Problem.</p><p>Link zum Video 👉 <a href='{vid_data.get('url')}' target='_blank'>SRF</a></p>"}
         }
     }
 
@@ -317,7 +321,6 @@ def create_iframe_page(data, reused_accordion=None):
                 "width": str(embed_data.get("width", "100%")),
                 "height": str(embed_data.get("height", "600")),
                 "resizeSupported": True,
-                # --- ADDED minWidth Support ---
                 "minWidth": str(embed_data.get("minWidth", "300"))
             }
         }
@@ -338,7 +341,6 @@ def create_mentimeter_page(url: str, title: str, top_text: str = "", accordion: 
         "title": title,
         "type": "iframe_page",
         "top_text": top_text,
-        # Updated to pass specific height and minWidth
         "embed": {
             "source": url, 
             "width": "800", 
@@ -391,7 +393,6 @@ def create_booklet_content_json_structure(user_input_list: list, roman_number: s
             title="Reflexion", 
             top_text="<p>Nehmen Sie sich einen Moment Zeit für die Reflexion.</p>",
             accordion=reusable_accordion,
-            # --- FIX: Larger height for survey ---
             height="2000",
             min_width="500"
         )
@@ -404,7 +405,6 @@ def create_booklet_content_json_structure(user_input_list: list, roman_number: s
             title="Ergebnisse", 
             top_text="<p>Hier sehen Sie die Ergebnisse der Umfrage:</p>", 
             accordion=None,
-            # --- FIX: Smaller height for results, wider minWidth ---
             height="500",
             min_width="800"
         )
