@@ -20,22 +20,26 @@ def main():
     col_conf1, col_conf2 = st.columns(2)
     with col_conf1:
         roman_number = st.text_input("Roman Numeral (e.g. II, III)", value="II")
+        cover_upload = st.file_uploader("Upload Title Image (Cover)", type=['png', 'jpg', 'jpeg'])
     with col_conf2:
         months_text = st.text_input("Months Text (e.g. März-April)", value="März-April")
 
     st.markdown("---")
-    st.markdown("### 📝 Chapter Content (JSON)")
+    st.markdown("### 📝 Chapter Content")
 
     # --- INPUTS ---
     col1, col2 = st.columns(2)
     
     with col1:
         st.subheader("1. Memory Game (Chap 2)")
-        st.info("You can paste the full JSON object OR just the list of cards `[...]`.")
+        
+        mem_images_upload = st.file_uploader("Upload Memory Images", type=['png', 'jpg', 'jpeg'], accept_multiple_files=True)
+        st.info("Ensure JSON paths match uploaded filenames (e.g., 'images/pz1a.jpg').")
+        
         json_memory = st.text_area(
-            "Memory JSON", 
+            "Memory JSON Structure", 
             height=150, 
-            placeholder='[{"image": ...}, {"image": ...}]',
+            placeholder='[{"image": {"path": "images/pz1a.jpg"...}, ...}]',
             key="input_memory"
         )
 
@@ -64,13 +68,11 @@ def main():
             key="input_cloze"
         )
 
-        st.subheader("5. Survey / IFrame Pages (Chap 6 & 7)")
-        json_steps = st.text_area(
-            "Steps JSON", 
-            height=150, 
-            placeholder='{"steps_6_and_7": [...]}',
-            key="input_steps"
-        )
+        st.subheader("5. Survey & Results (Chap 6 & 7)")
+        st.caption("Enter the Mentimeter URLs directly.")
+        menti_url_6 = st.text_input("Reflexion URL (Step 6 - Survey)", placeholder="https://www.menti.com/...")
+        # UPDATED LABEL BELOW
+        menti_url_7 = st.text_input("Results URL (Step 7 - Ergebnisse)", placeholder="https://www.mentimeter.com/app/presentation/...")
 
     st.markdown("---")
 
@@ -86,7 +88,8 @@ def main():
             return
 
         # 1. Collect inputs
-        raw_inputs = [json_memory, json_video, json_questions, json_cloze, json_steps]
+        # Note: We do NOT pass json_steps anymore, we use the URLs
+        raw_inputs = [json_memory, json_video, json_questions, json_cloze]
         parsed_data_list = []
         has_error = False
 
@@ -97,7 +100,7 @@ def main():
                     data = json.loads(raw_text)
                     
                     # --- FIX: Auto-wrap Memory Game if it is just a list ---
-                    if idx == 0 and isinstance(data, list):
+                    if isinstance(data, list) and idx == 0:
                         data = {
                             "type": "memory_game",
                             "title": "Memory-Spiel",
@@ -116,41 +119,77 @@ def main():
         if has_error:
             return
 
-        if not parsed_data_list:
-            st.warning("⚠️ All JSON input boxes are empty.")
-            return
-
         try:
             with st.spinner("Compiling H5P package..."):
-                # 3. Generate Content Structure (content.json) with dynamic values
+                
+                # A. Handle File Uploads (Images)
+                extra_files_to_zip = []
+                
+                # Cover Image
+                cover_filename_param = "images/title_2025.png" # default fallback
+                if cover_upload is not None:
+                    # We store it as images/filename in the zip
+                    cover_filename_param = f"images/{cover_upload.name}"
+                    extra_files_to_zip.append({
+                        "filename": cover_filename_param,
+                        "data": cover_upload.getvalue()
+                    })
+                
+                # Memory Images
+                if mem_images_upload:
+                    for mem_file in mem_images_upload:
+                        # Ensure user JSON references "images/filename" matches these
+                        f_path = f"images/{mem_file.name}"
+                        extra_files_to_zip.append({
+                            "filename": f_path,
+                            "data": mem_file.getvalue()
+                        })
+
+                # B. Generate Content Structure (content.json) with dynamic values
                 content_structure = booklet_generator.create_booklet_content_json_structure(
                     parsed_data_list, 
                     roman_number=roman_number, 
-                    months_text=months_text
+                    months_text=months_text,
+                    cover_image_name=cover_filename_param,
+                    mentimeter_urls=(menti_url_6, menti_url_7)
                 )
+                
+                # Convert to string (ensuring ss replacement happened in generator)
                 content_json_str = json.dumps(content_structure, ensure_ascii=False, indent=None)
                 
-                # 4. Generate H5P Definition (h5p.json) with dynamic title
+                # C. Generate H5P Definition (h5p.json)
                 full_book_title = f"Jahresrückblick SRF 2025 Teil {roman_number}"
                 h5p_json_dict = booklet_generator.generate_h5p_json_dict(full_book_title)
                 h5p_json_str = json.dumps(h5p_json_dict, ensure_ascii=False, indent=2)
 
-                # 5. Create ZIP Package
+                # D. Create ZIP Package
                 pkg_bytes = utils_booklet.create_h5p_package(
-                    content_json_str, h5p_json_str, str(TEMPLATE_ZIP_PATH), []
+                    content_json_str, 
+                    h5p_json_str, 
+                    str(TEMPLATE_ZIP_PATH), 
+                    extra_files_to_zip
                 )
 
             if pkg_bytes:
                 st.success(f"✅ H5P Booklet '{full_book_title}' generated successfully!")
                 
-                clean_filename = f"jahresrueckblick_2025_teil_{roman_number}.h5p".lower()
+                clean_filename = f"jahresrueckblick_2025_teil_{roman_number}".lower()
                 
-                st.download_button(
-                    label="💾 Download .h5p File",
-                    data=pkg_bytes,
-                    file_name=clean_filename,
-                    mime="application/zip"
-                )
+                col_d1, col_d2 = st.columns(2)
+                with col_d1:
+                    st.download_button(
+                        label="💾 Download .h5p File",
+                        data=pkg_bytes,
+                        file_name=f"{clean_filename}.h5p",
+                        mime="application/zip"
+                    )
+                with col_d2:
+                    st.download_button(
+                        label="💾 Download .zip File",
+                        data=pkg_bytes,
+                        file_name=f"{clean_filename}.zip",
+                        mime="application/zip"
+                    )
             else:
                 st.error("❌ Failed to create ZIP package. Check logs.")
 

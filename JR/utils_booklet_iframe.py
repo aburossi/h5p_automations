@@ -11,19 +11,30 @@ logger = logging.getLogger(__name__)
 def generate_uuid():
     return str(uuid.uuid4())
 
+# --- Text Processing ---
+def recursive_replace_ss(data):
+    """
+    Recursively traverses a dictionary or list.
+    If a string is found, replaces 'ß' with 'ss'.
+    """
+    if isinstance(data, str):
+        return data.replace("ß", "ss")
+    elif isinstance(data, dict):
+        return {k: recursive_replace_ss(v) for k, v in data.items()}
+    elif isinstance(data, list):
+        return [recursive_replace_ss(i) for i in data]
+    else:
+        return data
+
+# --- Existing Utils ---
 def parse_copyright_info(copyright_input):
-    """
-    Parses the simplified user copyright info into H5P format.
-    """
     if not copyright_input:
-        return {"license": "U"} # Unknown/Undisclosed
+        return {"license": "U"} 
 
     raw_license = copyright_input.get("license", "U")
     h5p_license = "U"
     h5p_version = copyright_input.get("version", "")
 
-    # Map generic names to H5P license codes
-    # Common mappings based on H5P standards
     if "CC BY-SA" in raw_license:
         h5p_license = "CC BY-SA"
         if not h5p_version and "4.0" in raw_license: h5p_version = "4.0"
@@ -36,7 +47,6 @@ def parse_copyright_info(copyright_input):
     elif "Copyright" in raw_license:
         h5p_license = "C"
     
-    # Construct the object
     return {
         "license": h5p_license,
         "title": copyright_input.get("title", ""),
@@ -46,24 +56,27 @@ def parse_copyright_info(copyright_input):
         "version": h5p_version
     }
 
-def create_image_param(image_data):
+def create_image_param(image_path_or_data):
     """
-    Creates a standard H5P Image parameter dict.
-    Accepts either a string (path) or a dictionary with details.
+    Standardizes image parameter generation.
     """
-    if not image_data:
+    if not image_path_or_data:
         return None
 
-    # Handle case where image_data is just a path string (legacy support)
-    if isinstance(image_data, str):
-        path = image_data
-        copyright_obj = {"license": "U"}
-        mime = "image/png"
+    # Default values
+    path = ""
+    mime = "image/png"
+    copyright_obj = {"license": "U"}
+
+    if isinstance(image_path_or_data, str):
+        path = image_path_or_data
+        # Simple extension check for mime
+        if path.lower().endswith('.jpg') or path.lower().endswith('.jpeg'):
+            mime = "image/jpeg"
     else:
-        # It is a dict from the new JSON structure
-        path = image_data.get("path")
-        mime = image_data.get("mime", "image/png")
-        copyright_obj = parse_copyright_info(image_data.get("copyright"))
+        path = image_path_or_data.get("path")
+        mime = image_path_or_data.get("mime", "image/png")
+        copyright_obj = parse_copyright_info(image_path_or_data.get("copyright"))
 
     if not path:
         return None
@@ -72,10 +85,9 @@ def create_image_param(image_data):
         "path": path,
         "mime": mime,
         "copyright": copyright_obj,
-        "width": 50, "height": 50 # Default dimensions for memory cards
+        "width": 50, "height": 50
     }
 
-# ... (Rest der Datei bleibt gleich: map_drag_text_to_h5p, map_questions_to_h5p_array etc.) ...
 def map_drag_text_to_h5p(task_data):
     full_text = task_data.get("text_content", "")
     distractors = task_data.get("distractors", "")
@@ -145,20 +157,43 @@ def map_tf_question(q):
         }
     }
 
-def create_h5p_package(content_json_str: str, h5p_json_str: str, template_zip_path: str, images_to_add: list = None):
-    if images_to_add is None: images_to_add = []
+# --- Packaging ---
+def create_h5p_package(content_json_str: str, h5p_json_str: str, template_zip_path: str, extra_files: list = None):
+    """
+    extra_files: list of tuples/dicts -> [{"filename": "images/title.png", "data": bytes_obj}, ...]
+    """
+    if extra_files is None: extra_files = []
+    
     try:
         with open(template_zip_path, 'rb') as f_template:
             template_bytes = f_template.read()
+        
         in_memory_zip = io.BytesIO()
+        
         with zipfile.ZipFile(in_memory_zip, 'w', zipfile.ZIP_DEFLATED) as new_zip:
+            # 1. Copy template files (excluding content.json and h5p.json)
             with zipfile.ZipFile(io.BytesIO(template_bytes), 'r') as template_zip_obj:
                 for item in template_zip_obj.infolist():
                     if item.filename.lower() in ['content/content.json', 'h5p.json']:
                         continue
                     new_zip.writestr(item, template_zip_obj.read(item.filename))
+            
+            # 2. Write new JSONs
             new_zip.writestr('content/content.json', content_json_str.encode('utf-8'))
             new_zip.writestr('h5p.json', h5p_json_str.encode('utf-8'))
+
+            # 3. Write extra files (images)
+            for file_info in extra_files:
+                filename = file_info["filename"]
+                data = file_info["data"]
+                # Ensure it sits in content/ folder if not specified
+                if not filename.startswith("content/"):
+                    target_path = f"content/{filename}"
+                else:
+                    target_path = filename
+                
+                new_zip.writestr(target_path, data)
+
         in_memory_zip.seek(0)
         return in_memory_zip.getvalue()
     except Exception as e:

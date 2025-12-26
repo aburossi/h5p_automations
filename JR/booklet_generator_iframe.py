@@ -4,7 +4,7 @@ import utils_booklet_iframe as utils_booklet
 
 # --- Constants & L10N ---
 DEFAULT_BEHAVIOUR = {
-    "baseColor": "#002f6c", "defaultTableOfContents": True, "progressIndicators": True,
+    "baseColor": "#002f6c", "defaultTableOfContents": False, "progressIndicators": True,
     "progressAuto": True, "displaySummary": True, "enableRetry": True
 }
 
@@ -89,9 +89,19 @@ def create_memory_game(data):
         item_a = raw_cards_list[i].get("image", {})
         item_b = raw_cards_list[i+1].get("image", {})
 
-        image_alt = item_a.get("imageAlt", "")
-        match_alt = item_b.get("matchAlt", "")
-        description = item_a.get("description", "")
+        # --- Handle String vs Dict inputs ---
+        if isinstance(item_a, str):
+            image_alt = ""
+            description = ""
+        else:
+            image_alt = item_a.get("imageAlt", "")
+            description = item_a.get("description", "")
+
+        if isinstance(item_b, str):
+            match_alt = ""
+        else:
+            match_alt = item_b.get("matchAlt", "")
+        # ------------------------------------
 
         pair = {
             "image": utils_booklet.create_image_param(item_a),
@@ -111,7 +121,7 @@ def create_memory_game(data):
             "behaviour": {"useGrid": False, "allowRetry": False},
             "lookNFeel": {
                 "themeColor": data.get("themeColor", "#002f6c"),
-                "cardBack": utils_booklet.create_image_param(data.get("card_back_image"))
+                "cardBack": utils_booklet.create_image_param(data.get("card_back_image", "images/card_back.png"))
             },
             "l10n": {
                 "cardTurns": "Züge", "timeSpent": "Benötigte Zeit", "feedback": "Gut gemacht!",
@@ -209,7 +219,7 @@ def create_video_page(data):
         "_reusable_accordion": accordion_obj
     }
 
-def create_question_set(data, is_drag_text=False):
+def create_question_set(data, is_drag_text=False, forced_pool_size=None):
     intro_screen = data.get("intro_screen", {})
     
     questions_h5p = []
@@ -218,6 +228,15 @@ def create_question_set(data, is_drag_text=False):
             questions_h5p.append(utils_booklet.map_drag_text_to_h5p(task))
     else:
         questions_h5p = utils_booklet.map_questions_to_h5p_array(data.get("questions", []))
+
+    # --- POOL SIZE LOGIC ---
+    # Default: Use all questions
+    pool_size = len(questions_h5p)
+    
+    # If forced by orchestrator (e.g. for Quiz)
+    if forced_pool_size is not None:
+        pool_size = forced_pool_size
+    # -----------------------
 
     qset_params = {
         "introPage": {
@@ -230,7 +249,7 @@ def create_question_set(data, is_drag_text=False):
         "progressType": "dots" if is_drag_text else "textual",
         "passPercentage": 50,
         "questions": questions_h5p,
-        "poolSize": len(questions_h5p),
+        "poolSize": pool_size,
         "override": {"checkButton": True, "showSolutionButton": "off" if is_drag_text else "on", "retryButton": "on"},
         "texts": {
             "prevButton": "Zurück", "nextButton": "Weiter", "finishButton": "Beenden", "submitButton": "Absenden",
@@ -297,7 +316,9 @@ def create_iframe_page(data, reused_accordion=None):
                 "source": embed_data.get("source"),
                 "width": str(embed_data.get("width", "100%")),
                 "height": str(embed_data.get("height", "600")),
-                "resizeSupported": True
+                "resizeSupported": True,
+                # --- ADDED minWidth Support ---
+                "minWidth": str(embed_data.get("minWidth", "300"))
             }
         }
     })
@@ -309,44 +330,88 @@ def create_iframe_page(data, reused_accordion=None):
         "params": {"content": column_content}
     }
 
-def create_booklet_content_json_structure(user_input_list: list, roman_number: str, months_text: str) -> dict:
+def create_mentimeter_page(url: str, title: str, top_text: str = "", accordion: dict = None, height: str = "600", min_width: str = "300"):
+    """
+    Simpler helper to create steps 6 and 7 without full JSON
+    """
+    data = {
+        "title": title,
+        "type": "iframe_page",
+        "top_text": top_text,
+        # Updated to pass specific height and minWidth
+        "embed": {
+            "source": url, 
+            "width": "800", 
+            "height": height,
+            "minWidth": min_width
+        },
+        "include_accordion_ref": True if accordion else False
+    }
+    return create_iframe_page(data, reused_accordion=accordion)
+
+
+def create_booklet_content_json_structure(user_input_list: list, roman_number: str, months_text: str, 
+                                            cover_image_name: str = "images/title_2025.png",
+                                            mentimeter_urls: tuple = (None, None)) -> dict:
+    
+    # 1. Start with Introduction
     chapters = [create_hardcoded_introduction(roman_number)]
     reusable_accordion = None
 
-    for item in user_input_list:
-        items_to_process = []
+    # 2. Process User Input List (Memory, Video, Questions, Cloze)
+    for chapter_data in user_input_list:
+        if not isinstance(chapter_data, dict):
+            logging.warning(f"Skipping invalid chapter data: {chapter_data}")
+            continue
+
+        c_type = chapter_data.get("type")
         
-        if isinstance(item, dict) and "steps_6_and_7" in item:
-            items_to_process = item["steps_6_and_7"]
-        else:
-            items_to_process = [item]
-
-        for chapter_data in items_to_process:
-            if not isinstance(chapter_data, dict):
-                logging.warning(f"Skipping invalid chapter data: {chapter_data}")
-                continue
-
-            c_type = chapter_data.get("type")
+        if c_type == "memory_game":
+            chapters.append(create_memory_game(chapter_data))
             
-            if c_type == "memory_game":
-                chapters.append(create_memory_game(chapter_data))
-                
-            elif c_type == "video_page":
-                result = create_video_page(chapter_data)
-                reusable_accordion = result.pop("_reusable_accordion", None)
-                chapters.append(result)
-                
-            elif c_type == "question_set":
-                chapters.append(create_question_set(chapter_data, is_drag_text=False))
-                
-            elif c_type == "cloze_set":
-                chapters.append(create_question_set(chapter_data, is_drag_text=True))
-                
-            elif c_type == "iframe_page":
-                chapters.append(create_iframe_page(chapter_data, reused_accordion=reusable_accordion))
+        elif c_type == "video_page":
+            result = create_video_page(chapter_data)
+            reusable_accordion = result.pop("_reusable_accordion", None)
+            chapters.append(result)
+            
+        elif c_type == "question_set":
+            # --- FIX: Set forced_pool_size=5 for the Quiz ---
+            chapters.append(create_question_set(chapter_data, is_drag_text=False, forced_pool_size=5))
+            
+        elif c_type == "cloze_set":
+            chapters.append(create_question_set(chapter_data, is_drag_text=True))
 
-    # --- FIX IS HERE: Correctly structure the coverMedium params ---
-    cover_image_file = utils_booklet.create_image_param("images/title_2025.png")
+    # 3. Add Steps 6 and 7 (Mentimeters)
+    url_1, url_2 = mentimeter_urls
+    
+    # Step 6: The Survey / Reflection
+    if url_1:
+        chap_6 = create_mentimeter_page(
+            url_1, 
+            title="Reflexion", 
+            top_text="<p>Nehmen Sie sich einen Moment Zeit für die Reflexion.</p>",
+            accordion=reusable_accordion,
+            # --- FIX: Larger height for survey ---
+            height="2000",
+            min_width="500"
+        )
+        chapters.append(chap_6)
+    
+    # Step 7: The Results (Ergebnisse)
+    if url_2:
+        chap_7 = create_mentimeter_page(
+            url_2, 
+            title="Ergebnisse", 
+            top_text="<p>Hier sehen Sie die Ergebnisse der Umfrage:</p>", 
+            accordion=None,
+            # --- FIX: Smaller height for results, wider minWidth ---
+            height="500",
+            min_width="800"
+        )
+        chapters.append(chap_7)
+
+    # 4. Define Cover Image
+    cover_image_file = utils_booklet.create_image_param(cover_image_name)
     
     content_structure = {
         "showCoverPage": True,
@@ -356,7 +421,7 @@ def create_booklet_content_json_structure(user_input_list: list, roman_number: s
                 "library": "H5P.Image 1.1",
                 "params": {
                     "contentName": "Bild",
-                    "file": cover_image_file, # Assign the file object here, WITHOUT .get()
+                    "file": cover_image_file,
                     "decorative": True,
                 },
                 "metadata": {"contentType": "Image", "license": "U", "title": "Cover"}
@@ -367,4 +432,7 @@ def create_booklet_content_json_structure(user_input_list: list, roman_number: s
         **BOOK_L10N
     }
     
-    return content_structure
+    # 5. Global text replacement for German 'ß' -> 'ss'
+    final_structure = utils_booklet.recursive_replace_ss(content_structure)
+
+    return final_structure
